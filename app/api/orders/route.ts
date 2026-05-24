@@ -72,12 +72,27 @@ export async function GET(request: NextRequest) {
       o.status AS order_status,
       o.customer_id,
       o.customer_name,
+      o.segment,
+      o.currency,
       o.delivery_date,
       o.created_at,
+      o.last_update,
+      o.confirmed_at,
+      o.confirmed_by,
+      o.cancelled_at,
+      o.cancelled_by,
       t.name AS timeslot,
+      o.delivery_time,
+      o.delivery_note,
       o.total_amount,
+      o.taxable_amount,
+      o.tax_percentage,
+      o.tax_amount,
+      o.shipping_price,
+      o.shipping_weight,
       o.driver_id,
       o.driver_name,
+      o.truck_id,
       o.shipping_address,
       o.contact_name,
       o.telephone,
@@ -85,6 +100,8 @@ export async function GET(request: NextRequest) {
       o.internal_note,
       o.fatture_id,
       o.document_type,
+      o.document_number,
+      o.document_link,
       o.last_payment_status,
       o.last_payment_amount,
       o.payment_balance
@@ -125,7 +142,9 @@ export async function GET(request: NextRequest) {
         oi.discount_percentage,
         p.id AS product_id,
         p.abbreviation,
-        p.name AS product_name
+        p.name AS product_name,
+        p.code AS product_code,
+        p.unit AS product_unit
       FROM order_items oi
       LEFT JOIN products p ON oi.product_id = p.id
       WHERE oi.order_id = ANY($1)
@@ -139,8 +158,10 @@ export async function GET(request: NextRequest) {
         order_id,
         status AS payment_status,
         amount,
-        user_name AS collected_by,
-        date AS payment_date
+        user_id AS collected_by_id,
+        user_name AS collected_by_name,
+        date AS payment_date,
+        created_at AS payment_created_at
       FROM payments
       WHERE order_id = ANY($1)
       ORDER BY order_id, date DESC
@@ -165,21 +186,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Group products by order_id
-    const productsByOrder: Record<string, Array<{
-      product_id: string;
-      abbreviation: string;
-      product_name: string;
-      quantity: number;
-      base_price: number;
-      net_price: number;
-      discount_percentage: number;
-    }>> = {};
+    const productsByOrder: Record<string, Array<Record<string, unknown>>> = {};
     for (const p of productsResult.rows) {
       if (!productsByOrder[p.order_id]) productsByOrder[p.order_id] = [];
       productsByOrder[p.order_id].push({
         product_id: p.product_id,
         abbreviation: p.abbreviation,
         product_name: p.product_name,
+        product_code: p.product_code,
+        product_unit: p.product_unit,
         quantity: p.quantity,
         base_price: p.base_price,
         net_price: p.net_price,
@@ -188,19 +203,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Group payments by order_id
-    const paymentsByOrder: Record<string, Array<{
-      payment_status: string;
-      amount: string;
-      collected_by: string | null;
-      payment_date: string;
-    }>> = {};
+    const paymentsByOrder: Record<string, Array<Record<string, unknown>>> = {};
     for (const p of paymentsResult.rows) {
       if (!paymentsByOrder[p.order_id]) paymentsByOrder[p.order_id] = [];
       paymentsByOrder[p.order_id].push({
         payment_status: p.payment_status,
         amount: p.amount,
-        collected_by: p.collected_by,
+        collected_by_id: p.collected_by_id,
+        collected_by_name: p.collected_by_name,
         payment_date: p.payment_date,
+        payment_created_at: p.payment_created_at,
       });
     }
 
@@ -213,6 +225,8 @@ export async function GET(request: NextRequest) {
         // Ordine
         order_id: o.order_id,
         order_status: o.order_status,
+        segment: o.segment,
+        currency: o.currency,
 
         // Cliente
         customer_id: o.customer_id,
@@ -222,9 +236,14 @@ export async function GET(request: NextRequest) {
         customer_outstanding_balance:
           balanceByCustomer[o.customer_id as string] || 0,
 
-        // Date
+        // Date e tracking
         delivery_date: o.delivery_date,
         created_at: o.created_at,
+        last_update: o.last_update,
+        confirmed_at: o.confirmed_at,
+        confirmed_by: o.confirmed_by,
+        cancelled_at: o.cancelled_at,
+        cancelled_by: o.cancelled_by,
 
         // Prodotti — abbreviazioni unite + dettaglio
         products_summary: products
@@ -234,8 +253,14 @@ export async function GET(request: NextRequest) {
 
         // Consegna
         timeslot: o.timeslot,
+        delivery_time: o.delivery_time,
+        delivery_note: o.delivery_note,
+        driver_id: o.driver_id,
         driver_name: o.driver_name,
+        truck_id: o.truck_id,
         shipping_address: o.shipping_address,
+        shipping_price: o.shipping_price,
+        shipping_weight: o.shipping_weight,
 
         // Contatto
         contact_name: o.contact_name,
@@ -243,12 +268,17 @@ export async function GET(request: NextRequest) {
         delivery_instructions: o.delivery_instructions,
         internal_note: o.internal_note,
 
+        // Importi
+        taxable_amount: o.taxable_amount,
+        tax_percentage: o.tax_percentage,
+        tax_amount: o.tax_amount,
+        total_amount: o.total_amount,
+
         // Fatturazione
         fatture_id: o.fatture_id,
         document_type: o.document_type,
-
-        // Totali ordine
-        total_amount: o.total_amount,
+        document_number: o.document_number,
+        document_link: o.document_link,
 
         // Pagamenti
         last_payment_status: o.last_payment_status,
