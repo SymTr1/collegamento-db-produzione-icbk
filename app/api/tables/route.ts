@@ -28,10 +28,9 @@ export async function GET(request: NextRequest) {
       tables: result.rows,
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error";
+    console.error("Tables error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: `Database error: ${message}` },
+      { error: "Database error. Unable to retrieve tables." },
       { status: 500 }
     );
   }

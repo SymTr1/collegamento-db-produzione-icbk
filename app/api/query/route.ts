@@ -68,9 +68,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Other database errors
+    // Other database errors — don't leak internal details
+    console.error("Query error:", message);
     return NextResponse.json(
-      { error: `Database error: ${message}` },
+      { error: "Database error. Check your query syntax and try again." },
       { status: 500 }
     );
   }

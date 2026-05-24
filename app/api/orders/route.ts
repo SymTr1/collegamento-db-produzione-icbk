@@ -295,10 +295,9 @@ export async function GET(request: NextRequest) {
       orders,
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Unknown error";
+    console.error("Orders error:", error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: `Database error: ${message}` },
+      { error: "Database error. Unable to retrieve orders." },
       { status: 500 }
     );
   }

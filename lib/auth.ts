@@ -15,8 +15,9 @@ export function validateApiKey(
   const expectedKey = process.env.API_KEY;
 
   if (!expectedKey) {
+    console.error("API_KEY environment variable is not set.");
     return NextResponse.json(
-      { error: "Server misconfigured: API_KEY not set." },
+      { error: "Internal server error." },
       { status: 500 }
     );
   }
