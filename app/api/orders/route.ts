@@ -103,10 +103,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, count: 0, orders: [] });
     }
 
-    // Get all order IDs for sub-queries
+    // Get all order IDs and customer IDs for sub-queries
     const orderIds = ordersResult.rows.map(
       (r: { order_id: string }) => r.order_id
     );
+    const customerIds = [
+      ...new Set(
+        ordersResult.rows.map(
+          (r: { customer_id: string }) => r.customer_id
+        )
+      ),
+    ];
 
     // Fetch products for all orders in one query
     const productsSql = `
@@ -139,6 +146,23 @@ export async function GET(request: NextRequest) {
       ORDER BY order_id, date DESC
     `;
     const paymentsResult = await readOnlyQuery(paymentsSql, [orderIds]);
+
+    // Fetch customer balances (for alert flag)
+    const balancesSql = `
+      SELECT customer_id, total_payment_balance_for_customer
+      FROM customer_balances
+      WHERE customer_id = ANY($1)
+        AND total_payment_balance_for_customer > 0
+    `;
+    const balancesResult = await readOnlyQuery(balancesSql, [customerIds]);
+
+    // Map customer balances
+    const balanceByCustomer: Record<string, number> = {};
+    for (const b of balancesResult.rows) {
+      balanceByCustomer[b.customer_id] = parseFloat(
+        b.total_payment_balance_for_customer
+      );
+    }
 
     // Group products by order_id
     const productsByOrder: Record<string, Array<{
@@ -193,6 +217,10 @@ export async function GET(request: NextRequest) {
         // Cliente
         customer_id: o.customer_id,
         customer_name: o.customer_name,
+        customer_has_outstanding_debt:
+          (balanceByCustomer[o.customer_id as string] || 0) > 0,
+        customer_outstanding_balance:
+          balanceByCustomer[o.customer_id as string] || 0,
 
         // Date
         delivery_date: o.delivery_date,
