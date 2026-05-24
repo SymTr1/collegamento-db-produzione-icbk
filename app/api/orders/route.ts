@@ -152,19 +152,20 @@ export async function GET(request: NextRequest) {
     `;
     const productsResult = await readOnlyQuery(productsSql, [orderIds]);
 
-    // Fetch payments for all orders in one query
+    // Fetch payments for all orders, with user name resolved from users table
     const paymentsSql = `
       SELECT
-        order_id,
-        status AS payment_status,
-        amount,
-        user_id AS collected_by_id,
-        user_name AS collected_by_name,
-        date AS payment_date,
-        created_at AS payment_created_at
-      FROM payments
-      WHERE order_id = ANY($1)
-      ORDER BY order_id, date DESC
+        pay.order_id,
+        pay.status AS payment_status,
+        pay.amount,
+        pay.user_id AS collected_by_id,
+        COALESCE(u.name || ' ' || u.surname, pay.user_name) AS collected_by_name,
+        pay.date AS payment_date,
+        pay.created_at AS payment_created_at
+      FROM payments pay
+      LEFT JOIN users u ON pay.user_id = u.id
+      WHERE pay.order_id = ANY($1)
+      ORDER BY pay.order_id, pay.date DESC
     `;
     const paymentsResult = await readOnlyQuery(paymentsSql, [orderIds]);
 
